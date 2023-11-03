@@ -1,3 +1,19 @@
+## cj
+
+**/.DS_Store
+**/*.class
+**/*.jar
+**/*.pyc
+**/*.zip
+
+**/.idea/
+**/bin/*
+**/build/
+**/log/
+**/out/
+**/tmp/
+
+
 # Ignore Gradle project-specific cache directory
 .gradle
 
