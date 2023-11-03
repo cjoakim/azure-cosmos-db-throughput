@@ -1,18 +1,19 @@
 package org.cjoakim.cosmos;
 
 import com.azure.cosmos.*;
+import com.azure.cosmos.models.*;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.cjoakim.cosmos.model.BaseballBatter;
 import org.cjoakim.cosmos.util.FileUtil;
+import reactor.core.publisher.Flux;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.UUID;
-
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 public class App {
 
@@ -39,6 +40,7 @@ public class App {
     }
 
     private static void loadCosmos(String[] args) {
+
         String dbname = args[1];
         String cname = args[2];
         String pk = args[3];
@@ -69,8 +71,56 @@ public class App {
                 .buildAsyncClient();
 
         CosmosAsyncDatabase database = client.getDatabase(dbname);
+
+        // Create the ThroughputControl container if necessary
+        CosmosContainerProperties throughputContainerProperties =
+                new CosmosContainerProperties("ThroughputControl", "/groupId")
+                        .setDefaultTimeToLiveInSeconds(-1);
+        ThroughputProperties throughputProperties = ThroughputProperties.createManualThroughput(400);
+        database.createContainerIfNotExists(throughputContainerProperties, throughputProperties).block();
+
+        // https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/quickstart-java?tabs=passwordlesssync%2Csign-in-azure-cli%2Casync-throughput#use-throughput-control
+        // The SDK will use the lower of the given targetThroughputThreshold and targetThroughput values.
+        if (false) {
+            ThroughputControlGroupConfig groupConfig =
+                    new ThroughputControlGroupConfigBuilder()
+                            .groupName("global")
+                            .targetThroughputThreshold(Float.parseFloat(pct))
+                            .targetThroughput(100)
+                            .build();
+
+            GlobalThroughputControlConfig globalControlConfig =
+                    client.createGlobalThroughputControlConfigBuilder("ThroughputControlDatabase", "ThroughputControl")
+                            .setControlItemRenewInterval(Duration.ofSeconds(5))
+                            .setControlItemExpireInterval(Duration.ofSeconds(11))
+                            .build();
+        }
+
         CosmosAsyncContainer container = database.getContainer(cname);
+
+        bulkUpsertItemsWithLocalThroughPutControl(container, filtered);
     }
+
+    private static void bulkUpsertItemsWithLocalThroughPutControl(
+            CosmosAsyncContainer container, List<BaseballBatter> batters) {
+
+        ThroughputControlGroupConfig groupConfig =
+                new ThroughputControlGroupConfigBuilder()
+                        .setGroupName("group1")
+                        .setTargetThroughput(200)
+                        .build();
+        container.enableLocalThroughputControlGroup(groupConfig);
+
+        List<CosmosItemOperation> operations = new ArrayList<>();
+        for (int i = 0; i < batters.size(); i++) {
+            BaseballBatter bb = batters.get(i);
+            operations.add(CosmosBulkOperations.getUpsertItemOperation(bb, new PartitionKey(bb.getPk())));
+        }
+        logger.warn("starting executeBulkOperations, operation count: " + operations.size());
+        container.executeBulkOperations(Flux.fromIterable(operations)).blockLast();
+        logger.warn("completed executeBulkOperations");
+    }
+
 
     /**
      * Read the Batting.csv file in this repo and return a corresponding List of BaseballBatter objects.
@@ -112,8 +162,8 @@ public class App {
     }
 
     private static List<BaseballBatter> filterBatters(List<BaseballBatter> batters, String team) {
-        List<BaseballBatter> filtered = new ArrayList<BaseballBatter>();
 
+        List<BaseballBatter> filtered = new ArrayList<BaseballBatter>();
         for (int i = 0; i < batters.size(); i++) {
             BaseballBatter bb = batters.get(i);
             if ((team.equalsIgnoreCase("all") || (team.equalsIgnoreCase(bb.getTeamID())))) {

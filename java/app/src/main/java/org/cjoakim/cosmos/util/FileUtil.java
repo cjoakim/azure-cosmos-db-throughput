@@ -28,16 +28,19 @@ public class FileUtil {
     }
 
     public boolean isDirectory(String name) {
+
         File dirOrFile = new File(name);
         return dirOrFile.isDirectory();
     }
 
     public boolean isFile(String name) {
+
         File dirOrFile = new File(name);
         return dirOrFile.isFile();
     }
 
     public ArrayList<String> listFiles(String directory, String pattern) {
+
         ArrayList<String> filteredFilenames = new ArrayList<String>();
         File dir = new File(directory);
         if (dir.isDirectory()) {
@@ -61,6 +64,7 @@ public class FileUtil {
     }
 
     public List<String> readLines(String infile) throws IOException {
+
         List<String> lines = new ArrayList<String>();
         File file = new File(infile);
         Scanner sc = new Scanner(file);
@@ -71,16 +75,19 @@ public class FileUtil {
     }
 
     public Map<String, Object> readJsonMap(String infile) throws Exception {
+
         ObjectMapper mapper = new ObjectMapper();
         return mapper.readValue(Paths.get(infile).toFile(), Map.class);
     }
 
     public ArrayList<Map<String, Object>> readJsonArray(String infile) throws Exception {
+
         ObjectMapper mapper = new ObjectMapper();
         return mapper.readValue(Paths.get(infile).toFile(), ArrayList.class);
     }
 
     public boolean deleteFile(String filename) {
+
         File dirOrFile = new File(filename);
         if (dirOrFile.isFile()) {
             return dirOrFile.delete();
@@ -91,6 +98,7 @@ public class FileUtil {
     }
 
     public void writeJson(Object obj, String outfile, boolean pretty, boolean verbose) throws Exception {
+
         ObjectMapper mapper = new ObjectMapper();
         String json = null;
         if (pretty) {
@@ -107,6 +115,7 @@ public class FileUtil {
     }
 
     public void writeTextFile(String outfile, String text, boolean verbose) throws Exception {
+
         FileWriter fw = null;
         try {
             fw = new FileWriter(outfile);

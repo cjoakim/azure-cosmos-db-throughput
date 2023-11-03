@@ -40,5 +40,5 @@ application {
 task load_cosmos_baseball_batters(type: JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
     mainClass = 'org.cjoakim.cosmos.App'
-    args 'load_cosmos_baseball_batters', 'dev', 'bball', '/pk', '10', 'all'
+    args 'load_cosmos_baseball_batters', 'dev', 'unittests', '/pk', '0.25', 'all'
 }

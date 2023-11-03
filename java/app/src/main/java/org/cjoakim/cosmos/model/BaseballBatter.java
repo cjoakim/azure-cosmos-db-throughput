@@ -38,6 +38,7 @@ public class BaseballBatter {
     boolean exception;
 
     public BaseballBatter(String[] fields, String csvLine) {
+        super();
         String[] values = csvLine.split("[,]", 0);
         if (fields.length == values.length) {
             for (int i = 0; i < values.length; i++) {
@@ -134,6 +135,7 @@ public class BaseballBatter {
     }
 
     public boolean isValid() {
+
         return games > 0;
     }
 }
