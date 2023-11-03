@@ -37,8 +37,8 @@ application {
     mainClass = 'org.cjoakim.cosmos.App'
 }
 
-//task database_and_container_crud(type: JavaExec) {
-//    classpath = sourceSets.main.runtimeClasspath
-//    mainClass = 'org.cjoakim.cosmosdb.nosql.App'
-//    args 'database_and_container_crud', 'java', 'c1', '/pk', '400', '604800', 'manual'
-//}
+task load_cosmos_baseball_batters(type: JavaExec) {
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'org.cjoakim.cosmos.App'
+    args 'load_cosmos_baseball_batters', 'dev', 'bball', '/pk', '10', '*'
+}
