@@ -13,7 +13,6 @@ repositories {
 
 dependencies {
     implementation 'com.azure:azure-cosmos:4.52.0'
-    implementation 'com.azure:azure-storage-blob:12.24.1'
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.15.3'
     implementation 'com.github.javafaker:javafaker:1.0.2'
     implementation 'com.opencsv:opencsv:5.8'
