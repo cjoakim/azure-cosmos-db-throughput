@@ -1,5 +1,6 @@
 package org.cjoakim.cosmos;
 
+import com.azure.cosmos.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.cjoakim.cosmos.model.BaseballBatter;
@@ -7,6 +8,7 @@ import org.cjoakim.cosmos.util.FileUtil;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
@@ -37,8 +39,8 @@ public class App {
     }
 
     private static void loadCosmos(String[] args) {
-        String db = args[1];
-        String container = args[2];
+        String dbname = args[1];
+        String cname = args[2];
         String pk = args[3];
         String pct = args[4];
         String team = args[5];
@@ -48,8 +50,25 @@ public class App {
             logger.error("Batters list is empty");
             return;
         }
+        String uri = getEnvVar("AZURE_COSMOSDB_NOSQL_URI");
+        String key = getEnvVar("AZURE_COSMOSDB_NOSQL_RW_KEY1");
+        String[] regions = getEnvVar("AZURE_COSMOSDB_NOSQL_SERVERLESS_PREF_REGIONS").split("[,]", 0);
+
+        CosmosAsyncClient client = new CosmosClientBuilder()
+                .endpoint(uri)
+                .key(key)
+                .preferredRegions(Arrays.asList(regions))
+                .consistencyLevel(ConsistencyLevel.EVENTUAL)
+                .contentResponseOnWriteEnabled(true)
+                .buildAsyncClient();
+
+        CosmosAsyncDatabase database = client.getDatabase(dbname);
+        CosmosAsyncContainer container = database.getContainer(cname);
     }
 
+    /**
+     * Read the Batting.csv file in this repo and return a corresponding List of BaseballBatter objects.
+     */
     private static List<BaseballBatter> readBaseballBatters() {
 
         ObjectMapper mapper = new ObjectMapper();
@@ -64,12 +83,14 @@ public class App {
                 String line = lines.get(i);
                 if (i == 0) {
                     headerFields = line.split("[,]", 0);
+                    System.out.println(mapper.writerWithDefaultPrettyPrinter().writeValueAsString(headerFields));
+                    // [ "playerID", "yearID", "stint", "teamID", "lgID", "G", "AB", "R", "H", "2B", "3B", "HR", "RBI", "SB", "CS", "BB", "SO", "IBB", "HBP", "SH", "SF", "GIDP" ]
                 }
                 else {
                     BaseballBatter bb = new BaseballBatter(headerFields, line);
                     if (bb.isValid()) {
                         batters.add(bb);
-                        if (i < 10) {
+                        if (i < 4) {
                             logger.warn("csv line: " + line);
                             System.out.println(mapper.writerWithDefaultPrettyPrinter().writeValueAsString(bb));
                         }
@@ -82,5 +103,10 @@ public class App {
         }
         logger.warn("batters read: " + batters.size());
         return batters;
+    }
+
+    private static String getEnvVar(String name) {
+
+        return System.getenv(name);
     }
 }
