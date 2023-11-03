@@ -50,6 +50,12 @@ public class App {
             logger.error("Batters list is empty");
             return;
         }
+        List<BaseballBatter> filtered = filterBatters(batters, team);
+        if (filtered.size() < 1000) {
+            logger.error("filtered batters list is too small");
+            return;
+        }
+
         String uri = getEnvVar("AZURE_COSMOSDB_NOSQL_URI");
         String key = getEnvVar("AZURE_COSMOSDB_NOSQL_RW_KEY1");
         String[] regions = getEnvVar("AZURE_COSMOSDB_NOSQL_SERVERLESS_PREF_REGIONS").split("[,]", 0);
@@ -103,6 +109,23 @@ public class App {
         }
         logger.warn("batters read: " + batters.size());
         return batters;
+    }
+
+    private static List<BaseballBatter> filterBatters(List<BaseballBatter> batters, String team) {
+        List<BaseballBatter> filtered = new ArrayList<BaseballBatter>();
+
+        for (int i = 0; i < batters.size(); i++) {
+            BaseballBatter bb = batters.get(i);
+            if ((team.equalsIgnoreCase("all") || (team.equalsIgnoreCase(bb.getTeamID())))) {
+                if (bb.getYear() >= 1950) {
+                    if (bb.getGames() > 0) {
+                        filtered.add(bb);
+                    }
+                }
+            }
+        }
+        logger.warn("filtered batters: " + filtered.size());
+        return filtered;
     }
 
     private static String getEnvVar(String name) {
