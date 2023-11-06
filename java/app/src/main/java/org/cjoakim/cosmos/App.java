@@ -10,7 +10,6 @@ import org.cjoakim.cosmos.util.FileUtil;
 import reactor.core.publisher.Flux;
 
 import java.io.IOException;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -24,109 +23,119 @@ public class App {
      * Entry point to the program.  It is driven by command-line args.
      */
     public static void main(String[] args) {
-
         for (int i = 0; i < args.length; i++) {
             logger.warn("cli arg: " + i + " --> " + args[i]);
         }
         String function = args[0];
+        String throughputControlType = args[1];  // local or global
+        Float[] percentages = {0.10f, 0.50f, 1.00f};
 
-        switch(function) {
+        switch (function) {
             case "load_cosmos_baseball_batters":
-                loadCosmos(args);
+                // args 'load_cosmos_baseball_batters', 'local', 'dev', 'unittests', 'all'
+                String type = args[1]; // local or global
+                String dbname = args[2];
+                String cname = args[3];
+                String team = args[4];
+
+                CosmosAsyncClient client = buildAsyncClient();
+                CosmosAsyncDatabase database = client.getDatabase(dbname);
+                CosmosAsyncContainer container = database.getContainer(cname);
+                List<BaseballBatter> batters = readFilterBatters(team);
+
+                for (int p = 0; p < percentages.length; p++) {
+                    Float pct = percentages[p];
+                    logger.warn("================================================================================");
+                    logger.warn("Iteration " + p + " dbname: " + dbname + ", cname: " + cname + ", pct: " + pct + ", team: " + team + ", batters: " + batters.size());
+                    if (type.equalsIgnoreCase("global")) {
+
+                    } else {
+                        loadCosmosLocalThroughput(client, container, pct, batters);
+                    }
+                    if (p < (percentages.length - 1)) {
+                        long ms = 1000 * 60 * 2;  // 2-minutes
+                        logger.warn("sleeping between iterations for " + ms + " ms");
+                        try {
+                            Thread.sleep(ms);
+                            logger.warn("awake after sleep");
+                        } catch (InterruptedException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
+                }
                 break;
             default:
                 logger.error("undefined command-line function: " + function);
         }
     }
 
-    private static void loadCosmos(String[] args) {
+    private static void loadCosmosLocalThroughput(
+            CosmosAsyncClient client, CosmosAsyncContainer container, Float pct, List<BaseballBatter> batters) {
 
-        String dbname = args[1];
-        String cname = args[2];
-        String pk = args[3];
-        String pct = args[4];
-        String team = args[5];
-        List<BaseballBatter> batters = readBaseballBatters();
+        logger.warn("loadCosmosLocalThroughput - pct: " + pct);
 
-        if (batters.size() < 1) {
-            logger.error("Batters list is empty");
-            return;
-        }
-        List<BaseballBatter> filtered = filterBatters(batters, team);
-        if (filtered.size() < 1000) {
-            logger.error("filtered batters list is too small");
-            return;
-        }
+        ThroughputControlGroupConfig groupConfig =
+                new ThroughputControlGroupConfigBuilder()
+                        .setGroupName("local1")
+                        .setTargetThroughputThreshold(pct)
+                        .build();
+        container.enableLocalThroughputControlGroup(groupConfig);
 
+        List<CosmosItemOperation> operations = buildBatterBulkUpsertOperations(batters);
+        executeBulkOperations(operations, container);
+    }
+
+    private static CosmosAsyncClient buildAsyncClient() {
         String uri = getEnvVar("AZURE_COSMOSDB_NOSQL_URI");
         String key = getEnvVar("AZURE_COSMOSDB_NOSQL_RW_KEY1");
         String[] regions = getEnvVar("AZURE_COSMOSDB_NOSQL_SERVERLESS_PREF_REGIONS").split("[,]", 0);
 
-        CosmosAsyncClient client = new CosmosClientBuilder()
+        return new CosmosClientBuilder()
                 .endpoint(uri)
                 .key(key)
                 .preferredRegions(Arrays.asList(regions))
-                .consistencyLevel(ConsistencyLevel.EVENTUAL)
+                .consistencyLevel(ConsistencyLevel.SESSION)
                 .contentResponseOnWriteEnabled(true)
                 .buildAsyncClient();
-
-        CosmosAsyncDatabase database = client.getDatabase(dbname);
-
-        // Create the ThroughputControl container if necessary
-        CosmosContainerProperties throughputContainerProperties =
-                new CosmosContainerProperties("ThroughputControl", "/groupId")
-                        .setDefaultTimeToLiveInSeconds(-1);
-        ThroughputProperties throughputProperties = ThroughputProperties.createManualThroughput(400);
-        database.createContainerIfNotExists(throughputContainerProperties, throughputProperties).block();
-
-        // https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/quickstart-java?tabs=passwordlesssync%2Csign-in-azure-cli%2Casync-throughput#use-throughput-control
-        // The SDK will use the lower of the given targetThroughputThreshold and targetThroughput values.
-        if (false) {
-            ThroughputControlGroupConfig groupConfig =
-                    new ThroughputControlGroupConfigBuilder()
-                            .groupName("global")
-                            .targetThroughputThreshold(Float.parseFloat(pct))
-                            .targetThroughput(100)
-                            .build();
-
-            GlobalThroughputControlConfig globalControlConfig =
-                    client.createGlobalThroughputControlConfigBuilder("ThroughputControlDatabase", "ThroughputControl")
-                            .setControlItemRenewInterval(Duration.ofSeconds(5))
-                            .setControlItemExpireInterval(Duration.ofSeconds(11))
-                            .build();
-        }
-
-        CosmosAsyncContainer container = database.getContainer(cname);
-
-        bulkUpsertItemsWithLocalThroughPutControl(container, filtered);
     }
 
-    private static void bulkUpsertItemsWithLocalThroughPutControl(
-            CosmosAsyncContainer container, List<BaseballBatter> batters) {
-
-        ThroughputControlGroupConfig groupConfig =
-                new ThroughputControlGroupConfigBuilder()
-                        .setGroupName("group1")
-                        .setTargetThroughput(200)
-                        .build();
-        container.enableLocalThroughputControlGroup(groupConfig);
-
+    private static List<CosmosItemOperation> buildBatterBulkUpsertOperations(List<BaseballBatter> batters) {
         List<CosmosItemOperation> operations = new ArrayList<>();
         for (int i = 0; i < batters.size(); i++) {
             BaseballBatter bb = batters.get(i);
             operations.add(CosmosBulkOperations.getUpsertItemOperation(bb, new PartitionKey(bb.getPk())));
         }
-        logger.warn("starting executeBulkOperations, operation count: " + operations.size());
-        container.executeBulkOperations(Flux.fromIterable(operations)).blockLast();
-        logger.warn("completed executeBulkOperations");
+        return operations;
     }
 
+    /**
+     * Execute the given bulk operations on the given container.  Return the elapsed MS.
+     */
+    private static long executeBulkOperations(List<CosmosItemOperation> operations, CosmosAsyncContainer container) {
+        logger.warn("starting executeBulkOperations, operation count: " + operations.size());
+        long start = System.currentTimeMillis();
+        container.executeBulkOperations(Flux.fromIterable(operations)).blockLast();
+        long finish = System.currentTimeMillis();
+        long elapsed = finish - start;
+        logger.warn("completed executeBulkOperations in " + elapsed);
+        return elapsed;
+    }
+
+    // ========== Environment and IO methods below, Cosmos DB above ==========
+
+    private static String getEnvVar(String name) {
+        return System.getenv(name);
+    }
+
+    private static List<BaseballBatter> readFilterBatters(String team) {
+        List<BaseballBatter> batters = readBaseballBatters();
+        return filterBatters(batters, team);
+    }
 
     /**
      * Read the Batting.csv file in this repo and return a corresponding List of BaseballBatter objects.
      */
     private static List<BaseballBatter> readBaseballBatters() {
-
         ObjectMapper mapper = new ObjectMapper();
         List<BaseballBatter> batters = new ArrayList<BaseballBatter>();
         try {
@@ -141,45 +150,65 @@ public class App {
                     headerFields = line.split("[,]", 0);
                     System.out.println(mapper.writerWithDefaultPrettyPrinter().writeValueAsString(headerFields));
                     // [ "playerID", "yearID", "stint", "teamID", "lgID", "G", "AB", "R", "H", "2B", "3B", "HR", "RBI", "SB", "CS", "BB", "SO", "IBB", "HBP", "SH", "SF", "GIDP" ]
-                }
-                else {
+                } else {
                     BaseballBatter bb = new BaseballBatter(headerFields, line);
                     if (bb.isValid()) {
                         batters.add(bb);
                         if (i < 4) {
-                            logger.warn("csv line: " + line);
-                            System.out.println(mapper.writerWithDefaultPrettyPrinter().writeValueAsString(bb));
+                            //logger.warn("csv line: " + line);
+                            //System.out.println(mapper.writerWithDefaultPrettyPrinter().writeValueAsString(bb));
                         }
                     }
                 }
             }
-        }
-        catch (IOException e) {
+        } catch (IOException e) {
             logger.fatal("unable to read input file " + BASEBALL_BATTERS_CSV_FILE);
         }
         logger.warn("batters read: " + batters.size());
         return batters;
     }
 
+    /**
+     * Filter the list of Batters.  Debut year > 1950 with a mininum number of games.
+     */
     private static List<BaseballBatter> filterBatters(List<BaseballBatter> batters, String team) {
-
+        logger.warn("filterBatters input size: " + batters.size());
         List<BaseballBatter> filtered = new ArrayList<BaseballBatter>();
         for (int i = 0; i < batters.size(); i++) {
             BaseballBatter bb = batters.get(i);
             if ((team.equalsIgnoreCase("all") || (team.equalsIgnoreCase(bb.getTeamID())))) {
                 if (bb.getYear() >= 1950) {
-                    if (bb.getGames() > 0) {
+                    if (bb.getGames() > 10) {
                         filtered.add(bb);
                     }
                 }
             }
         }
-        logger.warn("filtered batters: " + filtered.size());
+        logger.warn("filterBatters output size: " + filtered.size());
         return filtered;
     }
-
-    private static String getEnvVar(String name) {
-
-        return System.getenv(name);
-    }
 }
+
+//// https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/quickstart-java?tabs=passwordlesssync%2Csign-in-azure-cli%2Casync-throughput#use-throughput-control
+//// The SDK will use the lower of the given targetThroughputThreshold and targetThroughput values.
+//        if (false) {
+//                ThroughputControlGroupConfig groupConfig =
+//                new ThroughputControlGroupConfigBuilder()
+//                .groupName("global")
+//                .targetThroughputThreshold(Float.parseFloat(pct))
+//                .targetThroughput(100)
+//                .build();
+//
+//                GlobalThroughputControlConfig globalControlConfig =
+//                client.createGlobalThroughputControlConfigBuilder("ThroughputControlDatabase", "ThroughputControl")
+//                .setControlItemRenewInterval(Duration.ofSeconds(5))
+//                .setControlItemExpireInterval(Duration.ofSeconds(11))
+//                .build();
+//                }
+
+// Create the ThroughputControl container if necessary
+//        CosmosContainerProperties throughputContainerProperties =
+//                new CosmosContainerProperties("ThroughputControl", "/groupId")
+//                        .setDefaultTimeToLiveInSeconds(-1);
+//        ThroughputProperties throughputProperties = ThroughputProperties.createManualThroughput(400);
+//        database.createContainerIfNotExists(throughputContainerProperties, throughputProperties).block();

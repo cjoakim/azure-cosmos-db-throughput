@@ -40,8 +40,15 @@ application {
     mainClass = 'org.cjoakim.cosmos.App'
 }
 
-task load_cosmos_baseball_batters(type: JavaExec) {
+task load_cosmos_baseball_batters_local_throughput(type: JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
     mainClass = 'org.cjoakim.cosmos.App'
-    args 'load_cosmos_baseball_batters', 'dev', 'unittests', '/pk', '0.25', 'all'
+    args 'load_cosmos_baseball_batters', 'local', 'dev', 'unittests', 'nya'
 }
+
+task load_cosmos_baseball_batters_global_throughput(type: JavaExec) {
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'org.cjoakim.cosmos.App'
+    args 'load_cosmos_baseball_batters', 'global', 'dev', 'unittests', 'all'
+}
+
