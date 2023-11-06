@@ -18,7 +18,9 @@ import java.util.List;
 public class App {
 
     public static final String BASEBALL_BATTERS_CSV_FILE = "../../data/seanhahman-baseballdatabank-2023.1/core/Batting.csv";
-    public static final long SLEEP_MS = 1000 * 60 * 1; //
+    public static final long MS_PER_MINUTE = 1000 * 60;
+    public static final int MINUTES = 1;
+    public static final long SLEEP_MS = MS_PER_MINUTE * MINUTES;
 
     private static Logger logger = LogManager.getLogger(App.class);
 
@@ -84,7 +86,7 @@ public class App {
     private static void loadCosmosGlobalThroughput(
             CosmosAsyncClient client, String dbname, CosmosAsyncContainer container, Float pct, List<BaseballBatter> batters) {
 
-        String groupName = "local" + System.currentTimeMillis();
+        String groupName = "global1";
         String globalContainer = "GlobalThoughPutController";
         logger.warn("loadCosmosGlobalThroughput - pct: " + pct + ", groupName: " + groupName);
 
@@ -97,7 +99,7 @@ public class App {
 
         ThroughputControlGroupConfig groupGlobalConfig =
                 new ThroughputControlGroupConfigBuilder()
-                        .groupName("global1")
+                        .groupName(groupName)
                         .targetThroughputThreshold(pct)
                         .build();
 
