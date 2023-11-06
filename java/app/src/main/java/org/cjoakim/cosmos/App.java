@@ -28,7 +28,7 @@ public class App {
         }
         String function = args[0];
         String throughputControlType = args[1];  // local or global
-        Float[] percentages = {0.10f, 0.50f, 1.00f};
+        Float[] percentages = { 0.15f, 0.30f, 0.45f, 0.60f };
 
         switch (function) {
             case "load_cosmos_baseball_batters":
@@ -44,23 +44,15 @@ public class App {
                 List<BaseballBatter> batters = readFilterBatters(team);
 
                 for (int p = 0; p < percentages.length; p++) {
+                    sleep(1000 * 60 * 2); // sleep for 2-minutes between iterations or previous test
                     Float pct = percentages[p];
                     logger.warn("================================================================================");
                     logger.warn("Iteration " + p + " dbname: " + dbname + ", cname: " + cname + ", pct: " + pct + ", team: " + team + ", batters: " + batters.size());
                     if (type.equalsIgnoreCase("global")) {
 
-                    } else {
-                        loadCosmosLocalThroughput(client, container, pct, batters);
                     }
-                    if (p < (percentages.length - 1)) {
-                        long ms = 1000 * 60 * 2;  // 2-minutes
-                        logger.warn("sleeping between iterations for " + ms + " ms");
-                        try {
-                            Thread.sleep(ms);
-                            logger.warn("awake after sleep");
-                        } catch (InterruptedException e) {
-                            throw new RuntimeException(e);
-                        }
+                    else {
+                        loadCosmosLocalThroughput(client, container, pct, batters);
                     }
                 }
                 break;
@@ -125,6 +117,16 @@ public class App {
 
     private static String getEnvVar(String name) {
         return System.getenv(name);
+    }
+
+    private static void sleep(long ms) {
+        logger.warn("sleeping for " + ms + " ms");
+        try {
+            Thread.sleep(ms);
+            logger.warn("awake after sleep");
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private static List<BaseballBatter> readFilterBatters(String team) {
