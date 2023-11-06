@@ -10,6 +10,7 @@ import org.cjoakim.cosmos.util.FileUtil;
 import reactor.core.publisher.Flux;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -17,6 +18,8 @@ import java.util.List;
 public class App {
 
     public static final String BASEBALL_BATTERS_CSV_FILE = "../../data/seanhahman-baseballdatabank-2023.1/core/Batting.csv";
+    public static final long SLEEP_MS = 1000 * 60 * 1; //
+
     private static Logger logger = LogManager.getLogger(App.class);
 
     /**
@@ -44,12 +47,12 @@ public class App {
                 List<BaseballBatter> batters = readFilterBatters(team);
 
                 for (int p = 0; p < percentages.length; p++) {
-                    sleep(1000 * 60 * 2); // sleep for 2-minutes between iterations or previous test
+                    sleep(SLEEP_MS); // sleep for 2-minutes between iterations or previous test
                     Float pct = percentages[p];
                     logger.warn("================================================================================");
                     logger.warn("Iteration " + p + " dbname: " + dbname + ", cname: " + cname + ", pct: " + pct + ", team: " + team + ", batters: " + batters.size());
                     if (type.equalsIgnoreCase("global")) {
-
+                        loadCosmosGlobalThroughput(client, dbname, container, pct, batters);
                     }
                     else {
                         loadCosmosLocalThroughput(client, container, pct, batters);
@@ -64,14 +67,48 @@ public class App {
     private static void loadCosmosLocalThroughput(
             CosmosAsyncClient client, CosmosAsyncContainer container, Float pct, List<BaseballBatter> batters) {
 
-        logger.warn("loadCosmosLocalThroughput - pct: " + pct);
+        String groupName = "local" + System.currentTimeMillis();
+        logger.warn("loadCosmosLocalThroughput - pct: " + pct + ", groupName: " + groupName);
 
         ThroughputControlGroupConfig groupConfig =
                 new ThroughputControlGroupConfigBuilder()
-                        .setGroupName("local1")
+                        .setGroupName(groupName)
                         .setTargetThroughputThreshold(pct)
                         .build();
         container.enableLocalThroughputControlGroup(groupConfig);
+
+        List<CosmosItemOperation> operations = buildBatterBulkUpsertOperations(batters);
+        executeBulkOperations(operations, container);
+    }
+
+    private static void loadCosmosGlobalThroughput(
+            CosmosAsyncClient client, String dbname, CosmosAsyncContainer container, Float pct, List<BaseballBatter> batters) {
+
+        String groupName = "local" + System.currentTimeMillis();
+        String globalContainer = "GlobalThoughPutController";
+        logger.warn("loadCosmosGlobalThroughput - pct: " + pct + ", groupName: " + groupName);
+
+        // Create the GlobalThoughPutController container if necessary
+        CosmosContainerProperties throughputContainerProperties =
+                new CosmosContainerProperties(globalContainer, "/groupId")
+                        .setDefaultTimeToLiveInSeconds(-1);
+        ThroughputProperties throughputProperties = ThroughputProperties.createManualThroughput(4000);
+        client.getDatabase(dbname).createContainerIfNotExists(throughputContainerProperties, throughputProperties).block();
+
+        ThroughputControlGroupConfig groupGlobalConfig =
+                new ThroughputControlGroupConfigBuilder()
+                        .groupName("global1")
+                        .targetThroughputThreshold(pct)
+                        .build();
+
+        CosmosAsyncDatabase database = client.getDatabase(dbname);
+
+        GlobalThroughputControlConfig globalControlConfig =
+                client.createGlobalThroughputControlConfigBuilder(database.getId(), globalContainer)
+                        .setControlItemRenewInterval(Duration.ofSeconds(5))
+                        .setControlItemExpireInterval(Duration.ofSeconds(20))
+                        .build();
+        container.enableGlobalThroughputControlGroup(groupGlobalConfig, globalControlConfig);
 
         List<CosmosItemOperation> operations = buildBatterBulkUpsertOperations(batters);
         executeBulkOperations(operations, container);
