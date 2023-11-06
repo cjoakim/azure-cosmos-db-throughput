@@ -1,3 +1,19 @@
+# cj
+
+**/.idea/
+**/build/
+**/data/embeddings/
+**/data/players/
+**/dist/
+**/node_modules/
+**/private/
+**/tmp/
+**/*.tgz
+**/npm_pack.txt
+**/package-lock.json
+
+
+
 .gradle
 **/build/
 !src/**/build/
