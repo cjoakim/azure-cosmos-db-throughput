@@ -18,7 +18,16 @@ Code samples related to Cosmos DB Throughput and Throughput Control
 - https://learn.microsoft.com/en-us/azure/cosmos-db/monitor-resource-logs?tabs=azure-portal
 - https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/diagnostic-queries?tabs=resource-specific
 - https://learn.microsoft.com/en-us/azure/data-explorer/kusto/query/kql-quick-reference
-- 
+- https://learn.microsoft.com/en-us/azure/cosmos-db/insights-overview
+
+### Normalized RU Consumption Metric
+
+- https://learn.microsoft.com/en-us/azure/cosmos-db/monitor-normalized-request-units
+
+> The Normalized RU Consumption metric is a metric between 0% to 100% that is used to help
+> measure the utilization of provisioned throughput on a database or container. 
+> The metric is emitted at 1 minute intervals and is defined as the maximum RU/s utilization 
+> across all partition key ranges in the time interval.
 
 ### CDBPartitionKeyRUConsumption
 
@@ -41,6 +50,8 @@ CDBPartitionKeyRUConsumption
 | summarize max(RequestCharge) by bin(TimeGenerated, 1s), 
 | order by TimeGenerated
 ```
+
+3:06pm
 
 ### Other KQL Queries
 

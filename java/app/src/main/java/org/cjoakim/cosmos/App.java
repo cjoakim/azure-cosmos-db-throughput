@@ -19,8 +19,8 @@ public class App {
 
     public static final String BASEBALL_BATTERS_CSV_FILE = "../../data/seanhahman-baseballdatabank-2023.1/core/Batting.csv";
     public static final long MS_PER_MINUTE = 1000 * 60;
-    public static final long MINUTES = 1;
-    public static final long SLEEP_MS = 1000; //MS_PER_MINUTE * MINUTES;
+    public static final long MINUTES = 3;
+    public static final long SLEEP_MS = MS_PER_MINUTE * MINUTES;
 
     private static Logger logger = LogManager.getLogger(App.class);
 
@@ -201,6 +201,7 @@ public class App {
                 } else {
                     BaseballBatter bb = new BaseballBatter(headerFields, line);
                     if (bb.isValid()) {
+                        bb.setPk("mlb");  // <-- for hot-partition test
                         batters.add(bb);
                         if (i < 4) {
                             //logger.warn("csv line: " + line);

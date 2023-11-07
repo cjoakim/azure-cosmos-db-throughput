@@ -43,7 +43,7 @@ application {
 task load_cosmos_baseball_batters_local_throughput(type: JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
     mainClass = 'org.cjoakim.cosmos.App'
-    args 'load_cosmos_baseball_batters', 'local', 'dev', 'local', 'all'
+    args 'load_cosmos_baseball_batters', 'local', 'dev', 'test', 'all'
 }
 
 task load_cosmos_baseball_batters_global_throughput(type: JavaExec) {
