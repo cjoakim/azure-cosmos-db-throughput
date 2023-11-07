@@ -13,3 +13,61 @@ Code samples related to Cosmos DB Throughput and Throughput Control
 
 ---
 
+## Logging
+
+- https://learn.microsoft.com/en-us/azure/cosmos-db/monitor-resource-logs?tabs=azure-portal
+- https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/diagnostic-queries?tabs=resource-specific
+- https://learn.microsoft.com/en-us/azure/data-explorer/kusto/query/kql-quick-reference
+- 
+
+### CDBPartitionKeyRUConsumption
+
+#### By PartitionKey 
+
+```
+CDBPartitionKeyRUConsumption
+| where DatabaseName == "dev" and CollectionName == "local"
+| where TimeGenerated between (datetime("2023-11-07 12:00:00")..datetime("2023-11-07 20:00:00"))
+| summarize max(RequestCharge) by bin(TimeGenerated, 1s), PartitionKey
+| order by TimeGenerated
+```
+
+#### By PartitionKeyRangeId
+
+```
+CDBPartitionKeyRUConsumption
+| where DatabaseName == "dev" and CollectionName == "local"
+| where TimeGenerated between (datetime("2023-11-07 12:00:00")..datetime("2023-11-07 20:00:00"))
+| summarize max(RequestCharge) by bin(TimeGenerated, 1s), 
+| order by TimeGenerated
+```
+
+### Other KQL Queries
+
+```
+CDBPartitionKeyRUConsumption
+| where TimeGenerated >= now(-30m)
+| where DatabaseName == "dev" and CollectionName == "local"
+| summarize sum(todouble(RequestCharge)) by toint(PartitionKeyRangeId)
+| render columnchart
+```
+
+```
+CDBPartitionKeyRUConsumption
+| where TimeGenerated >= now(-30m)
+| where DatabaseName == "dev" and CollectionName == "local"
+| summarize sum(todouble(RequestCharge)) by PartitionKey, PartitionKeyRangeId
+| render columnchart
+```
+
+
+```
+CDBPartitionKeyStatistics
+| project RegionName, DatabaseName, CollectionName, PartitionKey, SizeKb
+
+CDBPartitionKeyStatistics
+| where DatabaseName == "dev" and CollectionName == "local"
+| project RegionName, DatabaseName, CollectionName, PartitionKey, SizeKb
+```
+
+

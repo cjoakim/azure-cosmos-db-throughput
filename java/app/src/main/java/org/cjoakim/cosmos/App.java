@@ -19,8 +19,8 @@ public class App {
 
     public static final String BASEBALL_BATTERS_CSV_FILE = "../../data/seanhahman-baseballdatabank-2023.1/core/Batting.csv";
     public static final long MS_PER_MINUTE = 1000 * 60;
-    public static final int MINUTES = 1;
-    public static final long SLEEP_MS = MS_PER_MINUTE * MINUTES;
+    public static final long MINUTES = 1;
+    public static final long SLEEP_MS = 1000; //MS_PER_MINUTE * MINUTES;
 
     private static Logger logger = LogManager.getLogger(App.class);
 
@@ -145,10 +145,17 @@ public class App {
     private static long executeBulkOperations(List<CosmosItemOperation> operations, CosmosAsyncContainer container) {
         logger.warn("starting executeBulkOperations, operation count: " + operations.size());
         long start = System.currentTimeMillis();
-        container.executeBulkOperations(Flux.fromIterable(operations)).blockLast();
+        CosmosBulkExecutionOptions opts = new CosmosBulkExecutionOptions();
+        opts.getThresholdsState();
+        CosmosBulkOperationResponse<Object> resp =
+            container.executeBulkOperations(Flux.fromIterable(operations), opts).blockLast();
         long finish = System.currentTimeMillis();
         long elapsed = finish - start;
         logger.warn("completed executeBulkOperations in " + elapsed);
+        //logger.warn(Flux.just(opts.getThresholdsState()).blockLast().);
+//        logger.warn(resp.getResponse().getCosmosDiagnostics());
+//        logger.warn(resp.getResponse().getCosmosDiagnostics().getDiagnosticsContext().getTotalRequestCharge());
+//        logger.warn(resp.getResponse().getCosmosDiagnostics().getDiagnosticsContext().getSystemUsage());
         return elapsed;
     }
 
