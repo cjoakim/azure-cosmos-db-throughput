@@ -11,6 +11,10 @@ Code samples related to Cosmos DB Throughput and Throughput Control
 
 - https://devblogs.microsoft.com/cosmosdb/azure-cosmos-db-java-ecosystem/
 
+### Priority-based execution
+
+- https://devblogs.microsoft.com/cosmosdb/introducing-priority-based-execution-in-azure-cosmos-db-preview/
+
 ---
 
 ## Logging
@@ -32,6 +36,16 @@ Code samples related to Cosmos DB Throughput and Throughput Control
 ### CDBPartitionKeyRUConsumption
 
 #### By PartitionKey 
+
+Batch size 100 vs 10
+
+```
+CDBPartitionKeyRUConsumption
+| where DatabaseName == "dev" and CollectionName == "test"
+| where TimeGenerated between (datetime("2023-11-08 14:08:32")..datetime("2023-11-08 15:11:34"))
+| summarize max(RequestCharge) by bin(TimeGenerated, 1s), PartitionKey
+| order by TimeGenerated
+```
 
 ```
 CDBPartitionKeyRUConsumption
