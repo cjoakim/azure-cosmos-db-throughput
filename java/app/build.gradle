@@ -46,14 +46,38 @@ task gmt_time_generated_kql(type: JavaExec) {
     args 'gmt_time_generated_kql'
 }
 
-task load_cosmos_baseball_batters_local_throughput(type: JavaExec) {
+task throughput_test_low_priority(type: JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
     mainClass = 'org.cjoakim.cosmos.App'
-    args 'load_cosmos_baseball_batters', 'local', 'dev', 'test', 'all', '10'
+    args 'throughput_test', '--priority', 'dev', 'test', 'all', '10', '--priority-low'
 }
 
-task load_cosmos_baseball_batters_global_throughput(type: JavaExec) {
+task throughput_test_high_priority(type: JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
     mainClass = 'org.cjoakim.cosmos.App'
-    args 'load_cosmos_baseball_batters', 'global', 'dev', 'global', 'all', '10'
+    args 'throughput_test', '--priority', 'dev', 'test', 'all', '10', '--priority-high'
+}
+
+task throughput_test_ru_limited_local(type: JavaExec) {
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'org.cjoakim.cosmos.App'
+    args 'throughput_test', '--local', 'dev', 'test', 'all',  '10', '--ru', '400'
+}
+
+task throughput_test_ru_limited_global(type: JavaExec) {
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'org.cjoakim.cosmos.App'
+    args 'throughput_test', '--global', 'dev', 'test', 'all',  '10', '--ru', '400'
+}
+
+task throughput_test_pct_limited_local(type: JavaExec) {
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'org.cjoakim.cosmos.App'
+    args 'throughput_test', '--local', 'dev', 'test', 'all',  '10', '--pct', '0.25'
+}
+
+task throughput_test_pct_limited_global(type: JavaExec) {
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'org.cjoakim.cosmos.App'
+    args 'throughput_test', '--global', 'dev', 'test', 'all',  '10', '--pct', '0.25'
 }

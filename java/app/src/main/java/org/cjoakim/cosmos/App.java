@@ -15,11 +15,19 @@ import java.time.Duration;
 import java.util.*;
 
 public class App {
+    private static final String FLAG_TYPE_LOCAL = "--local";
+    private static final String FLAG_TYPE_GLOBAL = "--global";
+    private static final String FLAG_TYPE_PRIORITY = "--priority";
+    private static final String FLAG_PRIORITY_LOW = "--priority-low";
+    private static final String FLAG_PRIORITY_HIGH = "--priority-high";
+    private static final String FLAG_REQUEST_UNITS = "--ru";
+    private static final String FLAG_PERCENT = "--pct";
 
-    public static final String BASEBALL_BATTERS_CSV_FILE = "../../data/seanhahman-baseballdatabank-2023.1/core/Batting.csv";
-    public static final long MS_PER_MINUTE = 1000 * 60;
-    public static final long MINUTES = 1;
-    public static final long SLEEP_MS = MS_PER_MINUTE * MINUTES;
+    private static final long ONE_MINUTE = 1000 * 60;
+
+    private static final String GLOBAL_CONTAINER = "GlobalThoughputController";
+    private static final String BASEBALL_BATTERS_CSV_FILE = "../../data/seanhahman-baseballdatabank-2023.1/core/Batting.csv";
+    private static String[] commandLineArgs = null;
 
     private static Logger logger = LogManager.getLogger(App.class);
 
@@ -27,60 +35,45 @@ public class App {
      * Entry point to the program.  It is driven by command-line args; see build.gradle.
      */
     public static void main(String[] args) {
-        for (int i = 0; i < args.length; i++) {
-            logger.warn("cli arg: " + i + " --> " + args[i]);
-        }
+
+        setCommandLineArgs(args);
         String function = args[0];
-        //Float[] percentages = { 0.15f, 0.30f, 0.45f, 0.60f };
-        int[]   ruValues    = { 100, 200, 400, 1200 };
 
         switch (function) {
-            case "gmt_time_generated_kql":
-                Date now = new Date();
-                logger.warn("kql: " + gmtTimeGeneratedKql(now, now));
-                break;
-            case "load_cosmos_baseball_batters":
-                String type = args[1]; // local or global
+            case "throughput_test":
+                String type   = getTestType(args[1]);
                 String dbname = args[2];
-                String cname = args[3];
-                String team = args[4];
+                String cname  = args[3];
+                String team   = args[4];
                 int batchSize = Integer.parseInt(args[5]);
+
+                sleep(ONE_MINUTE);  // TODO - move this to the invoking ps1/sh script
 
                 CosmosAsyncClient client = buildAsyncClient();
                 CosmosAsyncDatabase database = client.getDatabase(dbname);
                 CosmosAsyncContainer container = database.getContainer(cname);
                 List<BaseballBatter> batters = readFilterBatters(team);
 
-                for (int r = 0; r < ruValues.length; r++) {
-                    sleep(SLEEP_MS); // sleep for 2-minutes between iterations or previous test
-                    int rus = ruValues[r];
-                    logger.warn("================================================================================");
-                    logger.warn("Iteration " + r + " dbname: " + dbname + ", cname: " + cname + ", rus: " + rus + ", team: " + team + ", batters: " + batters.size() + ", batchSize: " + batchSize);
-                    if (type.equalsIgnoreCase("global")) {
-                        loadCosmosGlobalThroughput(client, dbname, container, rus, batters, batchSize);
-                    }
-                    else {
-                        loadCosmosLocalThroughput(client, container, rus, batters, batchSize);
-                    }
+                if (type.equalsIgnoreCase(FLAG_TYPE_GLOBAL)) {
+                    createGlobalThroughputContainer(client, dbname);
+                    loadCosmosGlobalThroughput(client, dbname, container, batters, batchSize);
+                } else {
+                    loadCosmosNonGlobalThroughput(container, batters, batchSize);
                 }
+                break;
+            case "gmt_time_generated_kql":
+                // This case is just for ad-hoc development and testing of method gmtTimeGeneratedKql
+                Date now = new Date();
+                logger.warn("kql: " + gmtTimeGeneratedKql(now, now));
                 break;
             default:
                 logger.error("undefined command-line function: " + function);
         }
     }
 
-    private static void loadCosmosLocalThroughput(
-            CosmosAsyncClient client, CosmosAsyncContainer container, int rus, List<BaseballBatter> batters, int batchSize) {
+    private static void loadCosmosNonGlobalThroughput(CosmosAsyncContainer container, List<BaseballBatter> batters, int batchSize) {
 
-        String groupName = "local"; // + System.currentTimeMillis();
-        logger.warn("loadCosmosLocalThroughput - target rus: " + rus + ", groupName: " + groupName);
-
-        ThroughputControlGroupConfig groupConfig =
-                new ThroughputControlGroupConfigBuilder()
-                        .setGroupName(groupName)
-                        .setTargetThroughput(rus)
-                        .build();
-                        // .setTargetThroughputThreshold(pct)
+        ThroughputControlGroupConfig groupConfig = buildThroughputControlGroupConfig();
         container.enableLocalThroughputControlGroup(groupConfig);
 
         List<CosmosItemOperation> operations = buildBatterBulkUpsertOperations(batters);
@@ -88,37 +81,33 @@ public class App {
     }
 
     private static void loadCosmosGlobalThroughput(
-            CosmosAsyncClient client, String dbname, CosmosAsyncContainer container, int rus, List<BaseballBatter> batters, int batchSize) {
-
-        String groupName = "global1";
-        String globalContainer = "GlobalThoughPutController";
-        logger.warn("loadCosmosGlobalThroughput - rus: " + rus + ", groupName: " + groupName);
-
-        // Create the GlobalThoughPutController container if necessary
-        CosmosContainerProperties throughputContainerProperties =
-                new CosmosContainerProperties(globalContainer, "/groupId")
-                        .setDefaultTimeToLiveInSeconds(-1);
-        ThroughputProperties throughputProperties = ThroughputProperties.createManualThroughput(4000);
-        client.getDatabase(dbname).createContainerIfNotExists(throughputContainerProperties, throughputProperties).block();
-
-        ThroughputControlGroupConfig groupGlobalConfig =
-                new ThroughputControlGroupConfigBuilder()
-                        .groupName(groupName)
-                        .setTargetThroughput(rus)
-                        .build();
-        //                         .targetThroughputThreshold(pct)
+            CosmosAsyncClient client, String dbname, CosmosAsyncContainer container, List<BaseballBatter> batters, int batchSize) {
 
         CosmosAsyncDatabase database = client.getDatabase(dbname);
 
+        ThroughputControlGroupConfig groupConfig = buildThroughputControlGroupConfig();
+
         GlobalThroughputControlConfig globalControlConfig =
-                client.createGlobalThroughputControlConfigBuilder(database.getId(), globalContainer)
+                client.createGlobalThroughputControlConfigBuilder(database.getId(), GLOBAL_CONTAINER)
                         .setControlItemRenewInterval(Duration.ofSeconds(5))
                         .setControlItemExpireInterval(Duration.ofSeconds(20))
                         .build();
-        container.enableGlobalThroughputControlGroup(groupGlobalConfig, globalControlConfig);
+        container.enableGlobalThroughputControlGroup(groupConfig, globalControlConfig);
 
         List<CosmosItemOperation> operations = buildBatterBulkUpsertOperations(batters);
         executeBulkOperations(operations, container, batchSize);
+    }
+
+    /**
+     * Create the GlobalThoughPutController container if necessary.
+     */
+    private static void createGlobalThroughputContainer(CosmosAsyncClient client, String dbname) {
+
+        CosmosContainerProperties throughputContainerProperties =
+                new CosmosContainerProperties(GLOBAL_CONTAINER, "/groupId")
+                        .setDefaultTimeToLiveInSeconds(-1);
+        ThroughputProperties throughputProperties = ThroughputProperties.createManualThroughput(4000);
+        client.getDatabase(dbname).createContainerIfNotExists(throughputContainerProperties, throughputProperties).block();
     }
 
     private static CosmosAsyncClient buildAsyncClient() {
@@ -161,8 +150,7 @@ public class App {
 
             if (nextBatch.size() < 1) {
                 continueToProcess = false;
-            }
-            else {
+            } else {
                 logger.warn("executeBulkOperations - executing batchIndex: " + batchIndex + " with " + nextBatch.size() + " operations");
                 CosmosBulkExecutionOptions opts = new CosmosBulkExecutionOptions();
                 opts.getThresholdsState();
@@ -181,6 +169,83 @@ public class App {
         return elapsed;
     }
 
+    /**
+     * Build and return a ThroughputControlGroupConfig per command-line arguments.
+     */
+    private static ThroughputControlGroupConfig buildThroughputControlGroupConfig() {
+
+        // set these per the command-line args in order to create the appropriate ThroughputControlGroupConfig
+        String groupName = "default";
+        int requestUnits = 0;
+        float percentOfAvailableRU = 0;
+        boolean priorityLow = false;
+        boolean priorityHigh = false;
+
+        // First scan the command-line args and set the above local variables
+        for (int i = 0; i < commandLineArgs.length; i++) {
+            String arg = commandLineArgs[i];
+            try {
+                switch (arg) {
+                    case FLAG_PRIORITY_LOW:
+                        priorityLow = true;
+                        groupName = "low";
+                        break;
+                    case FLAG_PRIORITY_HIGH:
+                        priorityHigh = true;
+                        groupName = "high";
+                        break;
+                    case FLAG_REQUEST_UNITS:
+                        requestUnits = Integer.parseInt(commandLineArgs[i + 1]);
+                        groupName = "rus";
+                        break;
+                    case FLAG_PERCENT:
+                        percentOfAvailableRU = Float.parseFloat(commandLineArgs[i + 1]);
+                        groupName = "pct";
+                        break;
+                }
+            } catch (NumberFormatException e) {
+                logger.error("buildThroughputControlGroupConfig - error processing arg: " + arg);
+            }
+        }
+
+        // Next, create and return the appropriate ThroughputControlGroupConfig based on the command-line args
+
+        if (priorityLow) {
+            logger.error("buildThroughputControlGroupConfig - creating low priority instance");
+            return new ThroughputControlGroupConfigBuilder()
+                    .groupName(groupName)
+                    .priorityLevel(PriorityLevel.LOW)
+                    .build();
+        }
+        if (priorityHigh) {
+            logger.error("buildThroughputControlGroupConfig - creating high priority instance");
+            return new ThroughputControlGroupConfigBuilder()
+                    .groupName(groupName)
+                    .priorityLevel(PriorityLevel.HIGH)
+                    .build();
+        }
+        if (requestUnits > 0) {
+            logger.error("buildThroughputControlGroupConfig - creating request units instance: " + requestUnits);
+            return new ThroughputControlGroupConfigBuilder()
+                    .setGroupName(groupName)
+                    .setTargetThroughput(requestUnits)
+                    .build();
+        }
+        if (percentOfAvailableRU > 0) {
+            logger.error("buildThroughputControlGroupConfig - creating percent of available RU instance: " + percentOfAvailableRU);
+            return new ThroughputControlGroupConfigBuilder()
+                    .setGroupName(groupName)
+                    .setTargetThroughputThreshold(percentOfAvailableRU)
+                    .build();
+        }
+
+        logger.error("buildThroughputControlGroupConfig - defaulting to low priority instance");
+        return new ThroughputControlGroupConfigBuilder()
+                .groupName("low")
+                .priorityLevel(PriorityLevel.LOW)
+                .build();
+    }
+
     private static ArrayList<CosmosItemOperation> getNextBatch(List<CosmosItemOperation> allOperations, int batchSize, int batchIndex) {
         ArrayList<CosmosItemOperation> thisBatch = new ArrayList<CosmosItemOperation>();
         int minIndex = batchIndex * batchSize;
@@ -196,7 +261,25 @@ public class App {
         return thisBatch;
     }
 
-    // ========== Environment and IO methods below, Cosmos DB above ==========
+    // ========== Cosmos DB methods above, others below ==========
+
+    private static void setCommandLineArgs(String[] args) {
+        commandLineArgs = args;
+        for (int i = 0; i < commandLineArgs.length; i++) {
+            logger.warn("cli arg: " + i + " --> " + commandLineArgs[i]);
+        }
+    }
+
+    private static String getTestType(String arg) {
+        if (arg.equalsIgnoreCase(FLAG_TYPE_LOCAL)) {
+            return FLAG_TYPE_LOCAL;
+        } else if (arg.equalsIgnoreCase(FLAG_TYPE_GLOBAL)) {
+            return FLAG_TYPE_GLOBAL;
+        } else if (arg.equalsIgnoreCase(FLAG_TYPE_PRIORITY)) {
+            return FLAG_TYPE_PRIORITY;
+        }
+        return null;
+    }
 
     private static String getEnvVar(String name) {
         return System.getenv(name);
