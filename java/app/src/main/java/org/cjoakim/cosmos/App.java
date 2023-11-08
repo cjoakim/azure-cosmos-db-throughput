@@ -10,54 +10,57 @@ import org.cjoakim.cosmos.util.FileUtil;
 import reactor.core.publisher.Flux;
 
 import java.io.IOException;
+import java.text.SimpleDateFormat;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 
 public class App {
 
     public static final String BASEBALL_BATTERS_CSV_FILE = "../../data/seanhahman-baseballdatabank-2023.1/core/Batting.csv";
     public static final long MS_PER_MINUTE = 1000 * 60;
-    public static final long MINUTES = 3;
+    public static final long MINUTES = 1;
     public static final long SLEEP_MS = MS_PER_MINUTE * MINUTES;
 
     private static Logger logger = LogManager.getLogger(App.class);
 
     /**
-     * Entry point to the program.  It is driven by command-line args.
+     * Entry point to the program.  It is driven by command-line args; see build.gradle.
      */
     public static void main(String[] args) {
         for (int i = 0; i < args.length; i++) {
             logger.warn("cli arg: " + i + " --> " + args[i]);
         }
         String function = args[0];
-        String throughputControlType = args[1];  // local or global
-        Float[] percentages = { 0.15f, 0.30f, 0.45f, 0.60f };
+        //Float[] percentages = { 0.15f, 0.30f, 0.45f, 0.60f };
+        int[]   ruValues    = { 100, 200, 400, 1200 };
 
         switch (function) {
+            case "gmt_time_generated_kql":
+                Date now = new Date();
+                logger.warn("kql: " + gmtTimeGeneratedKql(now, now));
+                break;
             case "load_cosmos_baseball_batters":
-                // args 'load_cosmos_baseball_batters', 'local', 'dev', 'unittests', 'all'
                 String type = args[1]; // local or global
                 String dbname = args[2];
                 String cname = args[3];
                 String team = args[4];
+                int batchSize = Integer.parseInt(args[5]);
 
                 CosmosAsyncClient client = buildAsyncClient();
                 CosmosAsyncDatabase database = client.getDatabase(dbname);
                 CosmosAsyncContainer container = database.getContainer(cname);
                 List<BaseballBatter> batters = readFilterBatters(team);
 
-                for (int p = 0; p < percentages.length; p++) {
+                for (int r = 0; r < ruValues.length; r++) {
                     sleep(SLEEP_MS); // sleep for 2-minutes between iterations or previous test
-                    Float pct = percentages[p];
+                    int rus = ruValues[r];
                     logger.warn("================================================================================");
-                    logger.warn("Iteration " + p + " dbname: " + dbname + ", cname: " + cname + ", pct: " + pct + ", team: " + team + ", batters: " + batters.size());
+                    logger.warn("Iteration " + r + " dbname: " + dbname + ", cname: " + cname + ", rus: " + rus + ", team: " + team + ", batters: " + batters.size() + ", batchSize: " + batchSize);
                     if (type.equalsIgnoreCase("global")) {
-                        loadCosmosGlobalThroughput(client, dbname, container, pct, batters);
+                        loadCosmosGlobalThroughput(client, dbname, container, rus, batters, batchSize);
                     }
                     else {
-                        loadCosmosLocalThroughput(client, container, pct, batters);
+                        loadCosmosLocalThroughput(client, container, rus, batters, batchSize);
                     }
                 }
                 break;
@@ -67,28 +70,29 @@ public class App {
     }
 
     private static void loadCosmosLocalThroughput(
-            CosmosAsyncClient client, CosmosAsyncContainer container, Float pct, List<BaseballBatter> batters) {
+            CosmosAsyncClient client, CosmosAsyncContainer container, int rus, List<BaseballBatter> batters, int batchSize) {
 
-        String groupName = "local" + System.currentTimeMillis();
-        logger.warn("loadCosmosLocalThroughput - pct: " + pct + ", groupName: " + groupName);
+        String groupName = "local"; // + System.currentTimeMillis();
+        logger.warn("loadCosmosLocalThroughput - target rus: " + rus + ", groupName: " + groupName);
 
         ThroughputControlGroupConfig groupConfig =
                 new ThroughputControlGroupConfigBuilder()
                         .setGroupName(groupName)
-                        .setTargetThroughputThreshold(pct)
+                        .setTargetThroughput(rus)
                         .build();
+                        // .setTargetThroughputThreshold(pct)
         container.enableLocalThroughputControlGroup(groupConfig);
 
         List<CosmosItemOperation> operations = buildBatterBulkUpsertOperations(batters);
-        executeBulkOperations(operations, container);
+        executeBulkOperations(operations, container, batchSize);
     }
 
     private static void loadCosmosGlobalThroughput(
-            CosmosAsyncClient client, String dbname, CosmosAsyncContainer container, Float pct, List<BaseballBatter> batters) {
+            CosmosAsyncClient client, String dbname, CosmosAsyncContainer container, int rus, List<BaseballBatter> batters, int batchSize) {
 
         String groupName = "global1";
         String globalContainer = "GlobalThoughPutController";
-        logger.warn("loadCosmosGlobalThroughput - pct: " + pct + ", groupName: " + groupName);
+        logger.warn("loadCosmosGlobalThroughput - rus: " + rus + ", groupName: " + groupName);
 
         // Create the GlobalThoughPutController container if necessary
         CosmosContainerProperties throughputContainerProperties =
@@ -100,8 +104,9 @@ public class App {
         ThroughputControlGroupConfig groupGlobalConfig =
                 new ThroughputControlGroupConfigBuilder()
                         .groupName(groupName)
-                        .targetThroughputThreshold(pct)
+                        .setTargetThroughput(rus)
                         .build();
+        //                         .targetThroughputThreshold(pct)
 
         CosmosAsyncDatabase database = client.getDatabase(dbname);
 
@@ -113,7 +118,7 @@ public class App {
         container.enableGlobalThroughputControlGroup(groupGlobalConfig, globalControlConfig);
 
         List<CosmosItemOperation> operations = buildBatterBulkUpsertOperations(batters);
-        executeBulkOperations(operations, container);
+        executeBulkOperations(operations, container, batchSize);
     }
 
     private static CosmosAsyncClient buildAsyncClient() {
@@ -142,21 +147,53 @@ public class App {
     /**
      * Execute the given bulk operations on the given container.  Return the elapsed MS.
      */
-    private static long executeBulkOperations(List<CosmosItemOperation> operations, CosmosAsyncContainer container) {
-        logger.warn("starting executeBulkOperations, operation count: " + operations.size());
+    private static long executeBulkOperations(List<CosmosItemOperation> allOperations, CosmosAsyncContainer container, int batchSize) {
+        logger.warn("starting executeBulkOperations, operation count: " + allOperations.size());
         long start = System.currentTimeMillis();
-        CosmosBulkExecutionOptions opts = new CosmosBulkExecutionOptions();
-        opts.getThresholdsState();
-        CosmosBulkOperationResponse<Object> resp =
-            container.executeBulkOperations(Flux.fromIterable(operations), opts).blockLast();
+        Date startDate = new Date();
+        boolean continueToProcess = true;
+        int batchIndex = -1;
+
+        while (continueToProcess) {
+            // Execute the bulk load in smaller batches so as to take advantage of throughput control
+            batchIndex++;
+            ArrayList<CosmosItemOperation> nextBatch = getNextBatch(allOperations, batchSize, batchIndex);
+
+            if (nextBatch.size() < 1) {
+                continueToProcess = false;
+            }
+            else {
+                logger.warn("executeBulkOperations - executing batchIndex: " + batchIndex + " with " + nextBatch.size() + " operations");
+                CosmosBulkExecutionOptions opts = new CosmosBulkExecutionOptions();
+                opts.getThresholdsState();
+                CosmosBulkOperationResponse<Object> resp =
+                        container.executeBulkOperations(Flux.fromIterable(nextBatch), opts).blockLast();
+            }
+            if (batchIndex > 10000) {
+                continueToProcess = false; // terminate a runaway loop
+            }
+        }
         long finish = System.currentTimeMillis();
+        Date finishDate = new Date();
         long elapsed = finish - start;
         logger.warn("completed executeBulkOperations in " + elapsed);
-        //logger.warn(Flux.just(opts.getThresholdsState()).blockLast().);
-//        logger.warn(resp.getResponse().getCosmosDiagnostics());
-//        logger.warn(resp.getResponse().getCosmosDiagnostics().getDiagnosticsContext().getTotalRequestCharge());
-//        logger.warn(resp.getResponse().getCosmosDiagnostics().getDiagnosticsContext().getSystemUsage());
+        logger.warn("kql: " + gmtTimeGeneratedKql(startDate, finishDate));
         return elapsed;
+    }
+
+    private static ArrayList<CosmosItemOperation> getNextBatch(List<CosmosItemOperation> allOperations, int batchSize, int batchIndex) {
+        ArrayList<CosmosItemOperation> thisBatch = new ArrayList<CosmosItemOperation>();
+        int minIndex = batchIndex * batchSize;
+        int maxIndex = minIndex + batchSize;
+        // TODO - check this logic for off-by-one errors
+        for (int i = 0; i < allOperations.size(); i++) {
+            if (i >= minIndex) {
+                if (i <= maxIndex) {
+                    thisBatch.add(allOperations.get(i));
+                }
+            }
+        }
+        return thisBatch;
     }
 
     // ========== Environment and IO methods below, Cosmos DB above ==========
@@ -236,28 +273,19 @@ public class App {
         logger.warn("filterBatters output size: " + filtered.size());
         return filtered;
     }
+
+    private static String gmtTimeGeneratedKql(Date startDate, Date finishDate) {
+        SimpleDateFormat sdf =
+                new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        sdf.setTimeZone(TimeZone.getTimeZone("GMT"));
+
+        // | where TimeGenerated between (datetime("2023-11-07 12:00:00")..datetime("2023-11-07 20:00:00"))
+        StringBuffer sb = new StringBuffer();
+        sb.append("| where TimeGenerated between (datetime(\"");
+        sb.append(sdf.format(startDate));
+        sb.append("\")..datetime(\"");
+        sb.append(sdf.format(finishDate));
+        sb.append("\"))");
+        return sb.toString();
+    }
 }
-
-//// https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/quickstart-java?tabs=passwordlesssync%2Csign-in-azure-cli%2Casync-throughput#use-throughput-control
-//// The SDK will use the lower of the given targetThroughputThreshold and targetThroughput values.
-//        if (false) {
-//                ThroughputControlGroupConfig groupConfig =
-//                new ThroughputControlGroupConfigBuilder()
-//                .groupName("global")
-//                .targetThroughputThreshold(Float.parseFloat(pct))
-//                .targetThroughput(100)
-//                .build();
-//
-//                GlobalThroughputControlConfig globalControlConfig =
-//                client.createGlobalThroughputControlConfigBuilder("ThroughputControlDatabase", "ThroughputControl")
-//                .setControlItemRenewInterval(Duration.ofSeconds(5))
-//                .setControlItemExpireInterval(Duration.ofSeconds(11))
-//                .build();
-//                }
-
-// Create the ThroughputControl container if necessary
-//        CosmosContainerProperties throughputContainerProperties =
-//                new CosmosContainerProperties("ThroughputControl", "/groupId")
-//                        .setDefaultTimeToLiveInSeconds(-1);
-//        ThroughputProperties throughputProperties = ThroughputProperties.createManualThroughput(400);
-//        database.createContainerIfNotExists(throughputContainerProperties, throughputProperties).block();

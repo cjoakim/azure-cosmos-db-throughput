@@ -40,10 +40,16 @@ application {
     mainClass = 'org.cjoakim.cosmos.App'
 }
 
+task gmt_time_generated_kql(type: JavaExec) {
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'org.cjoakim.cosmos.App'
+    args 'gmt_time_generated_kql'
+}
+
 task load_cosmos_baseball_batters_local_throughput(type: JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
     mainClass = 'org.cjoakim.cosmos.App'
-    args 'load_cosmos_baseball_batters', 'local', 'dev', 'test', 'all'
+    args 'load_cosmos_baseball_batters', 'local', 'dev', 'test', 'all', '100'
 }
 
 task load_cosmos_baseball_batters_global_throughput(type: JavaExec) {
