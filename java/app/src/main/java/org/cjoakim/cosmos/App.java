@@ -101,6 +101,7 @@ public class App {
      */
     private static void createGlobalThroughputContainer(CosmosAsyncClient client, String dbname) {
 
+        logger.warn("createGlobalThroughputContainer ...");
         CosmosContainerProperties throughputContainerProperties =
                 new CosmosContainerProperties(GLOBAL_CONTAINER, "/groupId")
                         .setDefaultTimeToLiveInSeconds(-1);
