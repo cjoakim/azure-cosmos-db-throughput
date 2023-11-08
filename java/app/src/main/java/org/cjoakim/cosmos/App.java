@@ -188,7 +188,7 @@ public class App {
         // TODO - check this logic for off-by-one errors
         for (int i = 0; i < allOperations.size(); i++) {
             if (i >= minIndex) {
-                if (i <= maxIndex) {
+                if (i < maxIndex) {
                     thisBatch.add(allOperations.get(i));
                 }
             }
