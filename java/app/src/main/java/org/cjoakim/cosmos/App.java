@@ -47,8 +47,6 @@ public class App {
                 String team   = args[4];
                 int batchSize = Integer.parseInt(args[5]);
 
-                sleep(ONE_MINUTE);  // TODO - move this to the invoking ps1/sh script
-
                 CosmosAsyncClient client = buildAsyncClient();
                 CosmosAsyncDatabase database = client.getDatabase(dbname);
                 CosmosAsyncContainer container = database.getContainer(cname);
@@ -166,6 +164,7 @@ public class App {
         long elapsed = finish - start;
         logger.warn("completed executeBulkOperations in " + elapsed);
         logger.warn("kql: " + gmtTimeGeneratedKql(startDate, finishDate));
+        logCommandLineArgs();
         return elapsed;
     }
 
@@ -265,6 +264,10 @@ public class App {
 
     private static void setCommandLineArgs(String[] args) {
         commandLineArgs = args;
+        logCommandLineArgs();
+    }
+
+    private static void logCommandLineArgs() {
         for (int i = 0; i < commandLineArgs.length; i++) {
             logger.warn("cli arg: " + i + " --> " + commandLineArgs[i]);
         }
