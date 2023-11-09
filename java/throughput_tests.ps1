@@ -8,31 +8,31 @@ gradle clean
 gradle build
 
 echo 'deleting logfile ...'
-del tmp\throughput_test1.txt
+del tmp\throughput_tests.txt
 
 Start-Sleep -Seconds 60
 echo 'throughput_test_low_priority ...'
-gradle throughput_test_low_priority  >  tmp\throughput_test1.txt
+gradle throughput_test_low_priority > tmp\throughput_tests.txt
 
 Start-Sleep -Seconds 60
 echo 'throughput_test_high_priority ...'
-gradle throughput_test_high_priority >> tmp\throughput_test1.txt
+gradle throughput_test_high_priority >> tmp\throughput_tests.txt
 
 Start-Sleep -Seconds 60
 echo 'throughput_test_ru_limited_local ...'
-gradle throughput_test_ru_limited_local >> tmp\throughput_test1.txt
+gradle throughput_test_ru_limited_local >> tmp\throughput_tests.txt
 
 Start-Sleep -Seconds 60
 echo 'throughput_test_ru_limited_global ...'
-gradle throughput_test_ru_limited_global >> tmp\throughput_test1.txt
+gradle throughput_test_ru_limited_global >> tmp\throughput_tests.txt
 
 Start-Sleep -Seconds 60
 echo 'throughput_test_pct_limited_local ...'
-gradle throughput_test_pct_limited_local >> tmp\throughput_test1.txt
+gradle throughput_test_pct_limited_local >> tmp\throughput_tests.txt
 
 Start-Sleep -Seconds 60
 echo 'throughput_test_pct_limited_global ...'
-gradle throughput_test_pct_limited_global >> tmp\throughput_test1.txt
+gradle throughput_test_pct_limited_global >> tmp\throughput_tests.txt
 
 echo 'done'
 
