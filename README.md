@@ -1,8 +1,10 @@
 # azure-cosmos-db-throughput
 
-Code samples related to Cosmos DB Throughput and Throughput Control
+Code samples related to Cosmos DB Throughput, Throughput Control,
+and Priority-based execution.
 
 See the language-specific subdirectories.
+At this time on the java/ directory is implemented.
 
 ## Dataset Used : Sean Lahman Baseball Database
 
