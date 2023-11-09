@@ -54,7 +54,7 @@ CDBPartitionKeyRUConsumption
 The report can be viewed as the following chart:
 
 <p align="center">
-  <img src="../img/tests-2023-11-09a.png" width="95%">
+  <img src="../img/tests-2023-11-09b.png" width="95%">
 </p>
 
 ---

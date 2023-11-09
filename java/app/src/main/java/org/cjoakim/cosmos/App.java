@@ -155,7 +155,6 @@ public class App {
                 logger.warn("executeBulkOperations - executing batchIndex: " + batchIndex + " with " + nextBatch.size() + " operations in group " + groupName);
                 CosmosBulkExecutionOptions opts = new CosmosBulkExecutionOptions();
                 opts.setThroughputControlGroupName(groupName);
-
                 CosmosBulkOperationResponse<Object> resp =
                         container.executeBulkOperations(Flux.fromIterable(nextBatch), opts).blockLast();
             }
