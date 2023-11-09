@@ -75,7 +75,7 @@ public class App {
         container.enableLocalThroughputControlGroup(groupConfig);
 
         List<CosmosItemOperation> operations = buildBatterBulkUpsertOperations(batters);
-        executeBulkOperations(operations, container, batchSize);
+        executeBulkOperations(operations, container, groupConfig.getGroupName(), batchSize);
     }
 
     private static void loadCosmosGlobalThroughput(
@@ -93,7 +93,7 @@ public class App {
         container.enableGlobalThroughputControlGroup(groupConfig, globalControlConfig);
 
         List<CosmosItemOperation> operations = buildBatterBulkUpsertOperations(batters);
-        executeBulkOperations(operations, container, batchSize);
+        executeBulkOperations(operations, container, groupConfig.getGroupName(), batchSize);
     }
 
     /**
@@ -135,7 +135,9 @@ public class App {
     /**
      * Execute the given bulk operations on the given container.  Return the elapsed MS.
      */
-    private static long executeBulkOperations(List<CosmosItemOperation> allOperations, CosmosAsyncContainer container, int batchSize) {
+    private static long executeBulkOperations(
+            List<CosmosItemOperation> allOperations, CosmosAsyncContainer container, String groupName, int batchSize) {
+
         logger.warn("starting executeBulkOperations, operation count: " + allOperations.size());
         long start = System.currentTimeMillis();
         Date startDate = new Date();
@@ -150,9 +152,10 @@ public class App {
             if (nextBatch.size() < 1) {
                 continueToProcess = false;
             } else {
-                logger.warn("executeBulkOperations - executing batchIndex: " + batchIndex + " with " + nextBatch.size() + " operations");
+                logger.warn("executeBulkOperations - executing batchIndex: " + batchIndex + " with " + nextBatch.size() + " operations in group " + groupName);
                 CosmosBulkExecutionOptions opts = new CosmosBulkExecutionOptions();
-                opts.getThresholdsState();
+                opts.setThroughputControlGroupName(groupName);
+
                 CosmosBulkOperationResponse<Object> resp =
                         container.executeBulkOperations(Flux.fromIterable(nextBatch), opts).blockLast();
             }
