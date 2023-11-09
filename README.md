@@ -4,7 +4,7 @@ Code samples related to Cosmos DB Throughput, Throughput Control,
 and Priority-based execution.
 
 See the language-specific subdirectories.
-At this time on the java/ directory is implemented.
+At this time only the [java/](java/readme.md) directory is implemented.
 
 ## Dataset Used : Sean Lahman Baseball Database
 
