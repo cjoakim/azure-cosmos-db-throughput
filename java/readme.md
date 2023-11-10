@@ -51,11 +51,16 @@ CDBPartitionKeyRUConsumption
 | order by TimeGenerated
 ```
 
-The report can be viewed as the following chart:
+The report can be viewed as the following graph:
 
 <p align="center">
   <img src="../img/tests-2023-11-09b.png" width="95%">
 </p>
+
+Note that the first two scenarios in the above graph, LOW and HIGH 
+Priority-Based-Execution, show full RU consumption rather than throttled
+RU consumption.  This is because this feature is in private preview,
+and my Cosmos DB account was not enabled to use it at the time of the test.
 
 ---
 
