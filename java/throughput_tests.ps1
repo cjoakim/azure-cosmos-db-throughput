@@ -10,15 +10,13 @@ gradle build
 echo 'deleting logfile ...'
 del tmp\throughput_tests.txt
 
-# Disabling low and high priority tests for now as this feature
-# is in private preview and not yet used by my Cosmos DB account.
-# Start-Sleep -Seconds 60
-# echo 'throughput_test_low_priority ...'
-# gradle throughput_test_low_priority > tmp\throughput_tests.txt
+ Start-Sleep -Seconds 60
+ echo 'throughput_test_low_priority ...'
+ gradle throughput_test_low_priority > tmp\throughput_tests.txt
 
-# Start-Sleep -Seconds 60
-# echo 'throughput_test_high_priority ...'
-# gradle throughput_test_high_priority >> tmp\throughput_tests.txt
+ Start-Sleep -Seconds 60
+ echo 'throughput_test_high_priority ...'
+ gradle throughput_test_high_priority >> tmp\throughput_tests.txt
 
 Start-Sleep -Seconds 60
 echo 'throughput_test_ru_limited_local ...'
