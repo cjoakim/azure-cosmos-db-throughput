@@ -43,19 +43,20 @@ application {
 // Several tasks/scenarios are defined below.
 // These pass different command-line args to the main program.
 
+// Explanation of these command-line arguments; see App.java for details:
+//  'throughput_test' = function, or runtype, passed to the main program
+// '--priority' = indicates that the nature of this test uses PBT, Priority based throughput
+//  'dev' = the Cosmos DB database to be loaded
+// 'test' = the Cosmos DB container to be loaded
+//    all = just the New York Yankees baseball players
+//    all = all baseball players on all teams
+//   '50' = batch size
+// '--priority-low' = use PriorityLevel.LOW
+
 task throughput_test_low_priority(type: JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
     mainClass = 'org.cjoakim.cosmos.App'
     args 'throughput_test', '--priority', 'dev', 'test', 'all', '50', '--priority-low'
-    // Explanation of these command-line arguments; see App.java for details:
-    //  'throughput_test' = function, or runtype, passed to the main program
-    // '--priority' = indicates that the nature of this test uses PBT, Priority based throughput
-    //  'dev' = the Cosmos DB database to be loaded
-    // 'test' = the Cosmos DB container to be loaded
-    //    all = just the New York Yankees baseball players
-    //    all = all baseball players on all teams
-    //   '50' = batch size
-    // '--priority-low' = use PriorityLevel.LOW
 }
 
 task throughput_test_high_priority(type: JavaExec) {
